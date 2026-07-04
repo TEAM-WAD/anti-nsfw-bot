@@ -2,6 +2,7 @@ import json
 import os
 import asyncio
 from telethon import TelegramClient, events
+from telethon.errors import SessionPasswordNeededError
 from telethon.tl.functions.stories import GetStoriesByIDRequest
 
 # 1. تحميل الإعدادات
@@ -11,21 +12,45 @@ with open("config.json", "r") as f:
 API_ID = int(config["api_id"])
 API_HASH = config["api_hash"]
 BOT_TOKEN = config["bot_token"]
-PHONE = config["phone"]  # سحب الرقم تلقائياً لتجنب تعليق الترمينال
+PHONE = config["phone"]
 
 # 2. إعداد جلسات العمل
 bot = TelegramClient('bot_session', API_ID, API_HASH)
 user = TelegramClient('user_session', API_ID, API_HASH)
 
 async def main():
-    print("🔄 جاري ربط حساب المساعد الفاحص (User)...")
-    # التمرير التلقائي للرقم يعبر مشكلة تعليق الإدخال بالآيفون
-    await user.start(phone=PHONE)
+    # الاتصال بسيرفرات تليجرام
+    await user.connect()
     
-    print("🔄 jgari تشغيل البوت الموزع (Bot)...")
+    print("🔄 جاري التحقق من جلسة المساعد...", flush=True)
+    
+    # تسجيل دخول يدوي ومضمون للآيفون لتجنب تجميد الشاشة
+    if not await user.is_user_authorized():
+        print("📥 جاري إرسال كود التحقق إلى حسابك على التليجرام...", flush=True)
+        try:
+            send_code = await user.send_code_request(PHONE)
+            auth_hash = send_code.phone_code_hash
+            
+            # إجبار الترمينال على إظهار الطلب فوراً
+            print("\n🔑 افتح تطبيق التليجرام واكتب الكود الذي وصلك هنا فوراً ثم اضغط Enter:", flush=True)
+            code = input().strip()
+            
+            try:
+                await user.sign_in(PHONE, code, phone_code_hash=auth_hash)
+            except SessionPasswordNeededError:
+                print("\n🔒 حسابك محمي بالتحقق بخطوتين، اكتب رمز الأمان (Password) مالتك هنا ثم اضغط Enter:", flush=True)
+                password = input().strip()
+                await user.sign_in(password=password)
+        except Exception as e:
+            print(f"❌ خطأ أثناء إرسال الكود: {e}", flush=True)
+            return
+
+    print("✅ تم ربط حساب المساعد بنجاح!", flush=True)
+    
+    print("🔄 جاري تشغيل البوت الموزع (Bot)...", flush=True)
     await bot.start(bot_token=BOT_TOKEN)
     
-    print("🚀 بوت تحميل الستوريات شغال الآن بنجاح!")
+    print("🚀 بوت تحميل الستوريات شغال الآن بنجاح وبدون أي تعليق!", flush=True)
 
     @bot.on(events.NewMessage(pattern='/start'))
     async def start(event):
