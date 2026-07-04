@@ -1,3 +1,2 @@
-pyTelegramBotAPI
-requests
-pillow
+telethon
+cryptg
