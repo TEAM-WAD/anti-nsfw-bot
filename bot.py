@@ -11,21 +11,21 @@ with open("config.json", "r") as f:
 API_ID = int(config["api_id"])
 API_HASH = config["api_hash"]
 BOT_TOKEN = config["bot_token"]
+PHONE = config["phone"]  # سحب الرقم تلقائياً لتجنب تعليق الترمينال
 
-# 2. إعداد جلسات العمل (البوت والمساعد)
+# 2. إعداد جلسات العمل
 bot = TelegramClient('bot_session', API_ID, API_HASH)
 user = TelegramClient('user_session', API_ID, API_HASH)
 
 async def main():
-    # تشغيل حساب المساعد (سيطلب رقمك والكود بالترمينال أول مرة فقط)
     print("🔄 جاري ربط حساب المساعد الفاحص (User)...")
-    await user.start()
+    # التمرير التلقائي للرقم يعبر مشكلة تعليق الإدخال بالآيفون
+    await user.start(phone=PHONE)
     
-    # تشغيل البوت الرسمي
-    print("🔄 جاري تشغيل البوت الموزع (Bot)...")
+    print("🔄 jgari تشغيل البوت الموزع (Bot)...")
     await bot.start(bot_token=BOT_TOKEN)
     
-    print("🚀 البوت شغال الآن بنجاح وجاهز لتحميل الستوريات!")
+    print("🚀 بوت تحميل الستوريات شغال الآن بنجاح!")
 
     @bot.on(events.NewMessage(pattern='/start'))
     async def start(event):
@@ -37,16 +37,13 @@ async def main():
             return
         
         url = event.text.strip()
-        # التأكد أن الرابط المرسل هو رابط ستوري
         if "t.me/" in url and "/s/" in url:
             await event.reply("⏳ جاري جلب الستوري، انتظر ثواني...")
             try:
-                # تحليل الرابط لاستخراج اسم المستخدم وايدي الستوري
                 parts = url.split('/')
                 username = parts[-3]
                 story_id = int(parts[-1])
                 
-                # جلب معلومات الحساب والستوري عبر حساب المساعد
                 peer = await user.get_input_entity(username)
                 result = await user(GetStoriesByIDRequest(peer=peer, id=[story_id]))
                 
@@ -54,17 +51,13 @@ async def main():
                     story = result.stories[0]
                     await event.reply("📥 جاري تحميل الميديا وإرسالها...")
                     
-                    # تحميل الملف للسيرفر مؤقتاً
                     media_path = await user.download_media(story.media)
+                    await bot.send_file(event.chat_id, media_path, caption="✅ تم تحميل الستوري بنجاح!")
                     
-                    # إرسال الملف للمستخدم عن طريق البوت
-                    await bot.send_file(event.chat_id, media_path, caption="✅ تم تحميل الستوري بنجاح بواسطة البوت!")
-                    
-                    # حذف الملف المؤقت للحفاظ على مساحة السيرفر
                     if os.path.exists(media_path):
                         os.remove(media_path)
                 else:
-                    await event.reply("❌ الستوري غير موجود، أو قد يكون الحساب خاصاً لا يمكن للمساعد رؤيته.")
+                    await event.reply("❌ الستوري غير موجود أو الحساب خاص.")
             except Exception as e:
                 await event.reply(f"❌ حدث خطأ أثناء المعالجة: {str(e)}")
 
